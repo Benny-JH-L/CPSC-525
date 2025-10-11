@@ -1,0 +1,4 @@
+./checkp benny.liang rw $(pwd)/myTest/hey.txt
+
+// pdf example run through:
+./checkp pfederl r /home/profs/pfederl/public/cpsc525/a2/tests/private/joke.txt
