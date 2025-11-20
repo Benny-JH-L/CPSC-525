@@ -9,7 +9,14 @@
 // Feel free to change anything in this file, execpt the signature
 // of the guess<n>() function.
 
+// Benny Liang | UCID: 30192142 | Assignment 4
+
+#include <stdio.h>
 #include <stdlib.h>
+#include <iostream>
+#include <error.h>
+
+using namespace std;
 
 // The guess<N>() function tries to guess a hardcoded secret from a compiled
 // executable, whos path is given as `exepath` parameter.
@@ -27,6 +34,43 @@
 // Make sure your function does not produce any output to stdout or stderr.
 const char * guess2(const char * exepath)
 {
-    // needs to be implemented
+    const int DEBUG = getenv("DEBUG") != nullptr;
+    static char secret[1024];
+    
+    const int ASCII_z = 'z';
+    int8_t exitCodeOf_strcmp = 1;
+    for (int index = 0; index < 1024 && exitCodeOf_strcmp != ASCII_z; index++)
+    {
+        secret[index] = 'z';
+
+        setenv("SECRET", secret, 1);
+        DEBUG && printf("Trying secret '%s'\n", secret);
+
+        int statusSys = system(exepath);
+        DEBUG && printf("\nreturned status of system(%s): '%d'\n", exepath, statusSys);
+        int exitCode = WEXITSTATUS(statusSys);
+        exitCodeOf_strcmp = (int8_t)exitCode;
+        DEBUG && printf("exit code status of `%s`: '%d'\n", exepath, exitCode);
+        DEBUG && printf("strcmp() result inside `%s`: '%d'\n", exepath, exitCodeOf_strcmp);
+    
+        if (! WIFEXITED(statusSys) || WEXITSTATUS(statusSys) == 127) 
+        {
+            if (DEBUG) error(0, errno, "system(%s) failed", exepath);
+            return NULL;
+        }
+        // check if executable reported success
+        if (WEXITSTATUS(statusSys) == 0) 
+        {
+            // success !!!
+            DEBUG && printf("success\n");
+            return secret;
+        }
+
+        // find the hardcoded char from return value `exitCodeOf_strcmp`
+        char letter = (char)(ASCII_z + exitCodeOf_strcmp);  // from ASCII 'z' the hardcoded character will be `exitCodeOf_strcmp` ASCII away (will be negative, even if its a digit)
+        DEBUG && printf("hardcoded letter found: '%c'\n", letter);
+        secret[index] = letter; // update the secret to the hardcoded char we found
+    }
+
     return NULL;
 }
