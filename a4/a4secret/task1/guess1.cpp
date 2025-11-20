@@ -18,6 +18,9 @@
 
 #include <string>
 #include <vector>
+#include <unistd.h>     // fork, exec
+#include <sys/types.h>  // pid_t
+#include <sys/wait.h>   // waitpid
 
 // testing
 #include <unordered_map>
@@ -89,10 +92,31 @@ const char * guess1(const char * exepath)
 
                 setenv("SECRET", secret, 1);
                 DEBUG && printf("Trying secret '%s'\n", secret);
-                int status = system(exepath);   // run the vulnerable executable
+
+                DEBUG && cout << "starting fork()" << endl;
+                pid_t fork_pid = fork();
+
+                if (fork_pid < 0)
+                    return NULL;
+                
+                // only fork() execute the following
+                if (fork_pid == 0)
+                {
+                    DEBUG && cout << "starting execl() w/ exepath: " << exepath << " | fork pid = " << fork_pid << endl;
+                    execl(exepath, (char*)NULL);
+
+                    return NULL;
+                }
+                
+                int status = 0;
+                DEBUG && cout << "starting waitpid() | pid = " << fork_pid << endl;
+                waitpid(fork_pid, &status, 0);
+
+                // int status = system(exepath);   // run the vulnerable executable
                 if (! WIFEXITED(status) || WEXITSTATUS(status) == 127) 
                 {
-                    if (DEBUG) error(0, errno, "system(%s) failed", exepath);
+                    // if (DEBUG) error(0, errno, "system(%s) failed", exepath);
+                    if (DEBUG) error(0, errno, "optimized version(%s) failed", exepath);
                     return NULL;
                 }
                 // check if executable reported success
