@@ -1,0 +1,8 @@
+SUBDIRS = task1 task2 task3 task4
+.PHONY: all $(MAKECMDGOALS)
+
+.PHONY: all $(MAKECMDGOALS) $(SUBDIRS)
+$(MAKECMDGOALS) all: $(SUBDIRS)
+
+$(SUBDIRS):
+	$(MAKE) -C $@ $(MAKECMDGOALS)

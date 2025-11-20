@@ -1,0 +1,1 @@
+INSTALLDIR ?= ~pfederl/public/cpsc525/a4/
