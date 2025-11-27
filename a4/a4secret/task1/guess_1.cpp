@@ -89,20 +89,29 @@ const char * guess1(const char * exepath)
                 pid_t fork_pid = fork();
 
                 if (fork_pid < 0)
+                {
+                    DEBUG && cout << "uh oh with `fork()`" << endl;
                     return NULL;
+                }
                 
-                // only fork() execute the following
+                // only fork() execute the following (child)
                 if (fork_pid == 0)
                 {
                     DEBUG && cout << "starting execl() w/ exepath: " << exepath << " | fork pid = " << fork_pid << endl;
                     execl(exepath, "", (char*)NULL);    // the "" arg, was added to dismiss compile warnings
 
-                    return NULL;
+                    DEBUG && cout << "execl() returned... exiting..." << endl;
+                    exit(0);
                 }
                 
+                // parent
                 int status = 0;
                 DEBUG && cout << "starting waitpid() | pid = " << fork_pid << endl;
-                waitpid(fork_pid, &status, 0);
+                if (waitpid(fork_pid, &status, 0) < 0)
+                {
+                    DEBUG && cout << "waitpid() is < 0: " << endl;
+                    return NULL;
+                }
 
                 // int status = system(exepath);   // run the vulnerable executable
                 if (! WIFEXITED(status) || WEXITSTATUS(status) == 127) 
