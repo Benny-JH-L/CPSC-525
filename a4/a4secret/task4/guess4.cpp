@@ -110,6 +110,7 @@ const char * guess4(const char * exepath)
             {
                 longestTime = timeTaken;    // update the longest time taken by system() so far
                 bestCharGuess = *charIt;    // update the best guess character
+                DEBUG && cout << "\tbest char guess so far: '" << bestCharGuess << "'" << endl;
             }
 
             DEBUG && cout << "\tlongest time = " << longestTime << "ms | avgTime = " << avgTime << "ms | 5% of avgTime = " << margin  << "ms" << endl;
