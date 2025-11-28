@@ -24,6 +24,8 @@
 
 using namespace std;
 
+int test_secret(const char* exepath, const char* secret, const int& DEBUG);
+
 // The guess<N>() function tries to guess a hardcoded secret from a compiled
 // executable, whos path is given as `exepath` parameter.
 // The input executable is assumed to behave as follows:
@@ -41,21 +43,22 @@ using namespace std;
 const char * guess1(const char * exepath)
 {
     // the function str2long() only copies and returns the first 3 bytes (32 bits - 1byte = 3 bytes) of the input string,
-    // so we only need to test passwords of length 3 over the valid characters for passwords ('a' to 'z' and 0-9).
-    // Which will be 36^3 = 46 656 passwords to test!
+    // so we only need to test passwords of length 1, 2, and 3 over the valid characters for passwords ('a' to 'z' and 0-9).
+    // Which will be 36^3 + 36^2 + 36 = 47 988 passwords to test!
 
     const int DEBUG = getenv("DEBUG") != nullptr;
+    static char secret[1024];
 
     vector<char> validPasswordChars;
+
+    // add digits 0 to 9
+    for (char digit = '0'; digit <= '9'; digit++)
+        validPasswordChars.emplace_back(digit);
 
     // get the letters from 'a' to 'z' and put them into the vector<char>
     // get the ascii of 'a' and continuly add 1 to get the rest of the letters
     for (char asciiChar = 'a'; asciiChar <= 'z'; asciiChar++)
         validPasswordChars.emplace_back(asciiChar);
-    
-    // add digits 0 to 9
-    for (char digit = '0'; digit <= '9'; digit++)
-        validPasswordChars.emplace_back(digit);
     
     // debug
     if (DEBUG)
@@ -65,74 +68,114 @@ const char * guess1(const char * exepath)
             cout << c << ", ";    
         cout << endl;
     }
-
-    static char secret[1024];
     
-    // 1st letter
+    // Go through possible passwords of length 1, 2, and 3.
+    // 1st character
     for (char& c1 : validPasswordChars)
     {
-        // 2nd letter
+        // first for-loop checks passwords of length 1
+        secret[0] = c1;
+        secret[1] = '\0';   // add the terminating character
+        
+        // test 1 character long `secret`
+        if (test_secret(exepath, secret, DEBUG))
+            return secret;
+        
+        // 2nd character
         for (char& c2 : validPasswordChars)
         {
-            // 3rd letter
+            // second for-loop checks passwords of length 2
+            secret[1] = c2;
+            secret[2] = '\0';   // add the terminating character
+
+            // test 2 character long `secret`
+            if (test_secret(exepath, secret, DEBUG))
+                return secret;
+            
+            // 3rd character
             for (char& c3 : validPasswordChars)
             {
-                // create the secret
-                secret[0] = c1;
-                secret[1] = c2;
+                // third for-loop checks passwords of length 3
                 secret[2] = c3;
+                secret[3] = '\0';   // although its not necessary here, add the terminating character
 
-                setenv("SECRET", secret, 1);
-                DEBUG && printf("Trying secret '%s'\n", secret);
-
-                DEBUG && cout << "starting fork()" << endl;
-                pid_t fork_pid = fork();
-
-                if (fork_pid < 0)
-                {
-                    DEBUG && cout << "uh oh with `fork()`" << endl;
-                    return NULL;
-                }
-                
-                // only fork() execute the following (child)
-                if (fork_pid == 0)
-                {
-                    DEBUG && cout << "starting execl() w/ exepath: " << exepath << " | fork pid = " << fork_pid << endl;
-                    execl(exepath, "", (char*)NULL);    // the "" arg, was added to dismiss compile warnings
-
-                    DEBUG && cout << "execl() returned... exiting..." << endl;
-                    exit(0);
-                }
-                
-                // parent
-                int status = 0;
-                DEBUG && cout << "starting waitpid() | pid = " << fork_pid << endl;
-                if (waitpid(fork_pid, &status, 0) < 0)
-                {
-                    DEBUG && cout << "waitpid() is < 0: " << endl;
-                    return NULL;
-                }
-
-                // int status = system(exepath);   // run the vulnerable executable
-                if (! WIFEXITED(status) || WEXITSTATUS(status) == 127) 
-                {
-                    // if (DEBUG) error(0, errno, "system(%s) failed", exepath);
-                    if (DEBUG) error(0, errno, "optimized version(%s) failed", exepath);
-                    return NULL;
-                }
-                // check if executable reported success
-                if (WEXITSTATUS(status) == 0) 
-                {
-                    // success !!!
-                    DEBUG && printf("success\n");
+                // test 3 character long `secret`
+                if (test_secret(exepath, secret, DEBUG))
                     return secret;
-                }
             }
         }
     }
     return NULL;
 }
 
+
+/**
+ * Calls the vulnerable program `exepath` with `secret` parameter.
+ * Prints debug statements if `DEBUG` is not null.
+ * 
+ * Returns:
+ * 1: If the `secret` is the hardcoded password,
+ * 0: Otherwise.
+ */
+int test_secret(const char* exepath, const char* secret, const int& DEBUG)
+{
+    setenv("SECRET", secret, 1);
+    DEBUG && printf("Trying secret '%s'\n", secret);
+
+    DEBUG && cout << "starting fork()" << endl;
+    pid_t fork_pid = fork();
+
+    if (fork_pid < 0)
+    {
+        DEBUG && cout << "uh oh with `fork()`" << endl;
+        return 0;
+    }
+    
+    // only fork() execute the vulnerable program (child)
+    if (fork_pid == 0)
+    {
+        DEBUG && cout << "starting execl() w/ exepath: " << exepath << " | fork pid = " << fork_pid << endl;
+        execl(exepath, exepath, (char *)NULL);
+
+        DEBUG && cout << "execl() returned... exiting..." << endl;
+        
+        _exit(127); // failed execl
+    }
+    
+    // parent
+    int status = 0;
+    DEBUG && cout << "starting waitpid() | pid = " << fork_pid << endl;
+    if (waitpid(fork_pid, &status, 0) < 0)
+    {
+        DEBUG && cout << "waitpid() is < 0: " << endl;
+        return 0;
+    }
+
+    // int status = system(exepath);               // run the vulnerable executable
+    int exitCode = WEXITSTATUS(status);
+    int8_t exitCodeOf_strcmp = (int8_t)exitCode;
+    
+    DEBUG && cout << "status: " << status << " | return of main: "  << exitCode << " | return of compare_secrets_1: " << (int)exitCodeOf_strcmp << endl;
+
+    if (! WIFEXITED(status) || WEXITSTATUS(status) == 127) 
+    {
+        // if (DEBUG) error(0, errno, "system(%s) failed", exepath);
+        if (DEBUG) error(0, errno, "optimized version(%s) failed", exepath);
+        return 0;
+    }
+    // check if executable reported success
+    if (WEXITSTATUS(status) == 0) 
+    {
+        // success !!!
+        DEBUG && printf("success\n");
+        return 1;   // `secret` passed in is the hardcoded password, return true
+    }
+
+    return 0;   // return false
+}
+
+
+// original
 // const char * guess1(const char * exepath)
 // {
 //     // the following implementation is not very good
